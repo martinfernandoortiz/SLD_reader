@@ -1,31 +1,36 @@
 # Load necessary libraries
 library(xml2)
 library(stringr)
+#setwd("~/Documents/GitHub/SLD_reader")
 
-columns = c("file_name", "rule_name","rule_desc","filter","min_scale_denom","max_scale_denom","symbolizer") 
+#Crear df vacio
+columns = c("file_name", "rule_name","rule_desc",
+            "filter","min_scale_denom","max_scale_denom",
+            "symbolizer","PointSymbolizer","LineSymbolizer","PolygonSymbolizer",
+            "TextSymbolizer")
 df = data.frame(matrix(nrow = 0, ncol = length(columns))) 
 colnames(df) = columns
 
 
 
-
+getwd()
 
 
 # Set path to directory containing sld files
 sld_dir <- getwd()
 
 # Get list of all sld files in directory
-sld_files <- list.files(sld_dir, pattern = "\\.sld$", full.names = TRUE)
+sld_files <- list.files(paste0(sld_dir,"/argenmap/"), pattern = "\\.sld$", full.names = TRUE)
 sld_count <- length(sld_files)
 
 
 
-
+#Primer Loop que lee los archivos de la carpeta
 for (xx in 1:13) {
   
 print(paste("SLD NUMERO",xx, se=" ")) #ESTO ES UN INDICATIVO
 
-sld_xml <- read_xml(sld_files[xx]) #LEO LOS ARCHIVOS EN LA CARPETA
+sld_xml <- read_xml(sld_files[xx]) #LEO UNO A UNO ARCHIVO DE LA CARPETA
 if( as.character(sld_xml)%>% str_detect("xmlns:se") == TRUE) { #ESTO PARA VER EL TIPO DE ESCRITURA SLD
    
     
@@ -77,8 +82,19 @@ for (i in 1:count_rule) {
   
   ###PASAMOS A SIMBOLOGIA
   
-  symbolizer <- xml_find_first(rules, ".//se:PolygonSymbolizer")
-  symbolizerText <- as.character(symbolizer)
+  PolygonSymbolizer <- xml_find_first(rules, ".//se:PolygonSymbolizer")
+  PolygonSymbolizerText <- as.character(PolygonSymbolizer)
+  
+  PointSymbolizer <- xml_find_first(rules, ".//se:PointSymbolizer")
+  PointSymbolizerText <- as.character(PointSymbolizer)
+  
+  LineSymbolizer <- xml_find_first(rules, ".//se:LineSymbolizer")
+  LineSymbolizerText <- as.character(LineSymbolizer)
+  
+  TextSymbolizer <- xml_find_first(rules, ".//se:TextSymbolizer")
+  TextSymbolizerText <- as.character(TextSymbolizer)
+  
+
   
   area <- xml_remove(rules)
   
@@ -92,7 +108,11 @@ for (i in 1:count_rule) {
     filter = filter1,
     min_scale_denom = min_scale_denom,
     max_scale_denom = max_scale_denom,
-    symbolizer=symbolizerText
+    symbolizer="",
+    PointSymbolizer= PointSymbolizerText,
+    LineSymbolizer=LineSymbolizerText,
+    PolygonSymbolizer=PolygonSymbolizerText,
+    TextSymbolizer=TextSymbolizerText
     #fill_color = fill_color,
     #fill_opacity = fill_opacity,
     #stroke_color = stroke_color,

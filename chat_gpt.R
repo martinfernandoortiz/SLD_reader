@@ -4,36 +4,25 @@ library(stringr)
 library(readr)
 library(tidyverse)
 #setwd("~/Documents/GitHub/SLD_reader")
+setwd("D:/martin/ign-argentina/SLD_reader/SLD_reader")
 
 
-fx_escalaMinimaRepresentacion <- function(y){
-  for (x in 1:19) {
-    #print(x)
-    # if condition with break
-    if(y > escalas[x]) {
-      minimo <- x- 1
-      break
-    }else{11111}
-    
-  }
-  return(minimo) 
-}
-fx_escalaMaximaRepresentacion <- function(y){
-  for (x in 1:19) {
-    print(x)
-    # if condition with break
-    if(y > escalas[x]) {
-      maximo <- x
-      break
-      
-    }
-  }
-  return(maximo)
-}
+############################## FX PARA ZOOM SCALE #############################################
+
+#df <- data.frame(
+#  Zoom = 1:19,
+#  Escala = c(279541132, 139770566, 69885283, 34942642, 17471321, 8735660, 4367830, 2183915, 1091958, 545979, 272989, 136495, 68247, 34124, 17062, 8531, 4265, 2133, 1066)
+#)
 zoomLevel <- read_table("zoomLevel.txt")
-escalas <-  as_vector (zoomLevel$Escala)
+# Define a function to get the zoom level
+get_zoom_level <- function(scale_value, zoomLevel) {
+  idx <- which.min(abs(zoomLevel$Escala - scale_value)) # find the index of the closest value
+  return(zoomLevel$Zoom[idx]) # return the corresponding Zoom value
+}
+############################## 
 
-#Crear df vacio
+
+############################### Crear df vacio ############################## 
 columns = c("file_name", "rule_name","rule_desc",
             "filter","min_scale_denom","max_scale_denom","max_zoom","min_zoom",  
             "symbolizer","PointSymbolizer","LineSymbolizer","PolygonSymbolizer",
@@ -41,16 +30,17 @@ columns = c("file_name", "rule_name","rule_desc",
 df = data.frame(matrix(nrow = 0, ncol = length(columns))) 
 colnames(df) = columns
 
+############################## 
 
 
-getwd()
 
 
-# Set path to directory containing sld files
+############################### Directorio con los sld
 sld_dir <- getwd()
 
-# Get list of all sld files in directory
-sld_files <- list.files(paste0(sld_dir,"/argenmap/"), pattern = "\\.sld$", full.names = TRUE)
+############################## # Lista de sld
+#sld_files <- list.files(paste0(sld_dir,"/argenmap/"), pattern = "\\.sld$", full.names = TRUE) #chequear dnd están
+sld_files <- list.files(paste0(sld_dir,"/"), pattern = "\\.sld$", full.names = TRUE)
 sld_count <- length(sld_files)
 
 
@@ -106,10 +96,14 @@ for (i in 1:count_rule) {
   
   
   ####PASAMOS a SCALE
-  min_scale_denom <- xml_text(xml_find_first(rules, ".//se:MinScaleDenominator"))
-  max_scale_denom <- xml_text(xml_find_first(rules, ".//se:MaxScaleDenominator"))
-  max_zoom<- fx_escalaMinimaRepresentacion(as.numeric(min_scale_denom))
-  min_zoom <- fx_escalaMaximaRepresentacion(as.numeric(max_scale_denom))
+  min_scale_denom <-as.numeric(xml_text(xml_find_first(rules, ".//se:MinScaleDenominator")))
+  min_scale_denom <- if_else(!is.na(min_scale_denom),min_scale_denom,1000)
+  
+  max_scale_denom <- as.numeric(xml_text(xml_find_first(rules, ".//se:MaxScaleDenominator")))
+  max_scale_denom <- if_else(!is.na(max_scale_denom),max_scale_denom,300000000)
+  
+  max_zoom<- get_zoom_level(min_scale_denom,zoomLevel)
+  min_zoom <-get_zoom_level(max_scale_denom,zoomLevel)
   
   ###PASAMOS A SIMBOLOGIA
   
@@ -159,12 +153,45 @@ df <- rbind(df,result_df)
 }
 
 
-
-###################
-
-
-#Reemplazo por 0 los NA de la escala
-df$min_scale_denom[is.na(df$min_scale_denom)] <-  0
-df$max_scale_denom[is.na(df$max_scale_denom)] <-  0
+library(readr)
+orden_Capas <- read_delim("orden_Capas.txt", 
+                          delim = "\t", escape_double = FALSE, 
+                          trim_ws = TRUE)
 
 
+
+########################################## AGREGAR REGISTROS POR NIVEL DE ZOOM ###################
+
+
+#Secuencia para agregar registros por n'umero de escala
+df <- df %>% mutate(id =row_number())
+
+# Create the original table
+original_table <-df
+
+
+# Create an empty dataframe to store the new rows
+new_rows <- data.frame(id = numeric(), number = numeric())
+
+# Loop through each row in the original table
+for (i in seq_len(nrow(original_table))) {
+  # Calculate the difference between min and max
+  diff <- original_table$max_zoom[i] - original_table$min_zoom[i]
+  
+  # Generate a sequence of numbers from min to max
+  numbers <- seq(from = original_table$min_zoom[i], to = original_table$max_zoom[i])
+  
+  # Create a new data frame with field1 and number columns
+  new_row <- data.frame(
+    id = rep(original_table$id[i], diff + 1),
+    number = numbers
+  )
+  
+  # Add the new row(s) to the empty dataframe
+  new_rows <- rbind(new_rows, new_row)
+}
+
+
+
+
+df_completo <- new_rows %>% left_join(df, by = "id")

@@ -1,11 +1,41 @@
 # Load necessary libraries
 library(xml2)
 library(stringr)
+library(readr)
+library(tidyverse)
 #setwd("~/Documents/GitHub/SLD_reader")
+
+
+fx_escalaMinimaRepresentacion <- function(y){
+  for (x in 1:19) {
+    #print(x)
+    # if condition with break
+    if(y > escalas[x]) {
+      minimo <- x- 1
+      break
+    }else{11111}
+    
+  }
+  return(minimo) 
+}
+fx_escalaMaximaRepresentacion <- function(y){
+  for (x in 1:19) {
+    print(x)
+    # if condition with break
+    if(y > escalas[x]) {
+      maximo <- x
+      break
+      
+    }
+  }
+  return(maximo)
+}
+zoomLevel <- read_table("zoomLevel.txt")
+escalas <-  as_vector (zoomLevel$Escala)
 
 #Crear df vacio
 columns = c("file_name", "rule_name","rule_desc",
-            "filter","min_scale_denom","max_scale_denom",
+            "filter","min_scale_denom","max_scale_denom","max_zoom","min_zoom",  
             "symbolizer","PointSymbolizer","LineSymbolizer","PolygonSymbolizer",
             "TextSymbolizer")
 df = data.frame(matrix(nrow = 0, ncol = length(columns))) 
@@ -78,7 +108,8 @@ for (i in 1:count_rule) {
   ####PASAMOS a SCALE
   min_scale_denom <- xml_text(xml_find_first(rules, ".//se:MinScaleDenominator"))
   max_scale_denom <- xml_text(xml_find_first(rules, ".//se:MaxScaleDenominator"))
-  
+  max_zoom<- fx_escalaMinimaRepresentacion(as.numeric(min_scale_denom))
+  min_zoom <- fx_escalaMaximaRepresentacion(as.numeric(max_scale_denom))
   
   ###PASAMOS A SIMBOLOGIA
   
@@ -108,6 +139,8 @@ for (i in 1:count_rule) {
     filter = filter1,
     min_scale_denom = min_scale_denom,
     max_scale_denom = max_scale_denom,
+    max_zoom=max_zoom,
+    min_zoom=min_zoom,
     symbolizer="",
     PointSymbolizer= PointSymbolizerText,
     LineSymbolizer=LineSymbolizerText,
@@ -127,13 +160,11 @@ df <- rbind(df,result_df)
 
 
 
+###################
 
 
-
-
-
-
-
-
+#Reemplazo por 0 los NA de la escala
+df$min_scale_denom[is.na(df$min_scale_denom)] <-  0
+df$max_scale_denom[is.na(df$max_scale_denom)] <-  0
 
 

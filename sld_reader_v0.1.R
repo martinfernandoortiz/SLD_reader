@@ -9,7 +9,7 @@ setwd("D:/martin/ign-argentina/SLD_reader/SLD_reader")
 
 
 #Esto sale del geoserver
-orden_Capas <- read_delim("orden_Capas.txt", 
+orden_Capas <- read_delim("orden_Capas_hibrido.txt", 
                           delim = "\t", escape_double = FALSE, 
                           trim_ws = TRUE)
 
@@ -35,7 +35,7 @@ get_zoom_level <- function(scale_value, zoomLevel) {
 
 ############################### Crear df vacio ############################## 
 columns = c("capa","orden_geoserver","file_name", "rule_name","rule_desc",
-            "filter","min_scale_denom","max_scale_denom","max_zoom","min_zoom",  
+            "filter","tipoFiltro","predicados","valores", "min_scale_denom","max_scale_denom","max_zoom","min_zoom",  
             "symbolizer","PointSymbolizer","LineSymbolizer","PolygonSymbolizer",
             "TextSymbolizer")
 df = data.frame(matrix(nrow = 0, ncol = length(columns))) 
@@ -97,27 +97,50 @@ count_rule <- length(sld_xml %>% xml_find_all( '//se:Rule') %>% xml_length())
 
 result <- list()
 for (i in 1:count_rule) {
-  
+
+
   print(i)
-  rules <- xml_find_first(sld_xml, "//se:Rule")
+  rules <- sld_xml %>% xml_find_first ("//se:Rule")
+
   #file_name  <-  basename(sld_files[xx])
   
   rule_name <- xml_text(xml_find_first(rules, ".//se:Name"))
+
+  
   rule_desc <- xml_text(xml_find_first(rules, ".//se:Description/se:Title"))
+
   
   # Extract the filter of the rule
   #La estructura de los filtros tiene multiples sentencias que pueden estar conectadas por AND u OR y cada sentencia características
   #particulares. Entonces hay que extraer tanto los predicados como las sentencias
   
-  filter <- xml_find_first(rules, ".//ogc:Filter") #De acá extraes todos los renglones del filtro. ES XML
-  filter1 <- xml_text(filter)
-  filterPredicado <- filter %>% xml_children() %>% xml_children() #ES XML
+  filter <- xml_find_all(rules, ".//ogc:Filter") #De acá extraes todos los renglones del filtro. ES XML
+  filter1 <-   ifelse(is.na(filter),as.character(""),as.character(paste(xml_text(filter), collapse =" ")))
+  tipoFiltro <-  ifelse(is.na(filter),as.character(""), as.character(paste( filter %>% xml_children() %>% xml_children() %>%  xml_contents(),collapse = " ")))
+  valores <-  paste(xml_text(filter), collapse =" ")
+  
+  #filterPredicado <- filter %>% xml_children() %>% xml_children() #ES XML
   
   
-  tipoFiltro <- xml_name( xml_children( filter ) )#Ejemplo or, and, etc. ES TEXTO
-  predicados <- xml_name( filterPredicado)# clase de predicado. ver el lenght
-  valores <-xml_name( xml_children(filterPredicado))# clase de predicado. ver el lenght
+  #tipoFiltro <- xml_name( xml_children( filter ) )
   
+  #filter %>% xml_children() %>% xml_children() %>%  xml_contents()
+#  tipoFiltro <-  filter %>% xml_children() %>% xml_children() %>%  xml_contents()
+
+  #tipoFiltro <- ifelse(is.na(filter),"", paste(tipoFiltro, collapse = ", ") )#Ejemplo or, and, etc. ES TEXTO
+  #filterPredicado <- filter %>% xml_children() %>% xml_children() %>%xml_children() %>%  xml_text()
+  #predicados <- ifelse(is.na(filter),"",paste(filterPredicado.collapse=" "))# clase de predicado. ver el lenght
+  
+
+  
+    #valores <-  filter %>% xml_children() %>% xml_children() %>% xml_siblings() %>% xml_contents()
+ #   valores <-ifelse(is.na(filter),"", paste(valores, collapse =" "))# clase de predicado. ver el lenght
+
+  #  tipoFiltro <- paste(xml_text(filter), collapse = " "))
+  #  tipoFiltro <-  #paste(filter %>% xml_children() %>% xml_children() %>% xml_siblings() %>% xml_contents(), collapse = " ")
+  #  filterPredicado <- paste(filter %>% xml_children() %>% xml_children() %>%xml_children() %>%  xml_name(), collapse = " ")
+  #  valores <- paste(filter %>% xml_children() %>% xml_children() %>%xml_children() %>%  xml_contents(),collapse = " ")
+   predicados <- 1 
   #Es decir la consulta se construye con 
   # valores[1] predicado[1] valores[2]
   #valores[3] predicado[2] valores[4]
@@ -162,7 +185,10 @@ for (i in 1:count_rule) {
     file_name = file_name,
     rule_name = rule_name,
     rule_desc = rule_desc,
-    filter = filter1,
+    filter = toString( filter1),
+    tipoFiltro= toString(tipoFiltro),
+    predicados=as.character(predicados),
+    valores=as.character(valores),
     min_scale_denom = min_scale_denom,
     max_scale_denom = max_scale_denom,
     max_zoom=max_zoom,
@@ -195,22 +221,36 @@ df <- df %>% mutate(id =row_number())
 
 # Create the original table
 original_table <-df
+original_table <- original_table %>% mutate(max_zoom1 = if_else(max_zoom>min_zoom,max_zoom,min_zoom),
+                                            min_zoom1 = if_else(max_zoom>min_zoom,min_zoom,max_zoom),
+                                            max_zoom=max_zoom1,
+                                            min_zoom=min_zoom) %>% 
+                                            select(-max_zoom1,-min_zoom1)
+
+
+original_table <- original_table %>% mutate(min_zoom1 = if_else(max_zoom>min_zoom,min_zoom,max_zoom))
+
+
+original_table <- mutate_if(original_table, is.factor,as.character)
 
 
 # Create an empty dataframe to store the new rows
 new_rows <- data.frame(id = numeric(), number = numeric())
 
+
+
 # Loop through each row in the original table
 for (i in seq_len(nrow(original_table))) {
   
-  print(i)
-  
+
   # Calculate the difference between min and max
   diff <- original_table$max_zoom[i] - original_table$min_zoom[i]
-  
+  print(original_table[i,1]) 
+  print(paste0(original_table[i,12],original_table[i,13], sep=" "))
+  print(diff)
   # Generate a sequence of numbers from min to max
   numbers <- seq(from = original_table$min_zoom[i], to = original_table$max_zoom[i])
-  
+  print(numbers)
   # Create a new data frame with field1 and number columns
   new_row <- data.frame(
     id = rep(original_table$id[i], diff + 1),
@@ -225,4 +265,7 @@ for (i in seq_len(nrow(original_table))) {
 
 
 df_completo <- new_rows %>% left_join(df, by = "id")
+df_completo <- mutate_if(df_completo, is.factor,as.character)
+
 df_3 <- df_completo %>%filter(number ==3)
+write_excel_csv(df_completo,"argenmap_hibrido.csv")
